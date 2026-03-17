@@ -15,6 +15,11 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Plus, Users, Calendar, User, CalendarCheck } from "lucide-react";
+import {
+  detectBrowserTimeZone,
+  formatInTimeZone,
+  zonedWallTimeToUtcDate,
+} from "@/lib/timezone";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -42,6 +47,10 @@ const COLORS = [
 ];
 
 const slot = (day: number, hour: number): TimeSlot => `${day}-${hour}`;
+
+// This prototype's grid (Mon–Fri 9–18) is treated as "base time zone" slots.
+// We convert suggested meeting times to the viewer's browser time zone.
+const BASE_TIME_ZONE = "Asia/Taipei";
 
 // ─── Fake initial data ────────────────────────────────────────────────────────
 
@@ -227,6 +236,9 @@ export default function MeetFlow() {
   const [newName, setNewName] = useState("");
   const [open, setOpen] = useState(false);
   const [viewId, setViewId] = useState("xiao-liang");
+  const [browserTimeZone] = useState<string | null>(() =>
+    detectBrowserTimeZone()
+  );
 
   const me = members.find((m) => m.id === "me")!;
   const others = members.filter((m) => m.id !== "me");
@@ -266,6 +278,46 @@ export default function MeetFlow() {
     setMembers((prev) => [...prev, newMember]);
     setNewName("");
     setOpen(false);
+  }
+
+  function formatSlotForViewer(s: TimeSlot): string {
+    const tz = browserTimeZone ?? BASE_TIME_ZONE;
+    const [d, h] = s.split("-").map(Number);
+
+    // Reference week: 2026-01-05 is a Monday.
+    const startUtc = zonedWallTimeToUtcDate(
+      { year: 2026, month: 0, day: 5 + d, hour: h },
+      BASE_TIME_ZONE
+    );
+    const endUtc = zonedWallTimeToUtcDate(
+      { year: 2026, month: 0, day: 5 + d, hour: h + 1 },
+      BASE_TIME_ZONE
+    );
+
+    if (!startUtc || !endUtc) {
+      return `${DAYS[d]} ${h}:00–${h + 1}:00`;
+    }
+
+    const dayLabel = formatInTimeZone(
+      startUtc,
+      tz,
+      { weekday: "short" },
+      "zh-TW"
+    );
+    const startLabel = formatInTimeZone(
+      startUtc,
+      tz,
+      { hour: "2-digit", minute: "2-digit", hour12: false },
+      "zh-TW"
+    );
+    const endLabel = formatInTimeZone(
+      endUtc,
+      tz,
+      { hour: "2-digit", minute: "2-digit", hour12: false },
+      "zh-TW"
+    );
+
+    return `${dayLabel} ${startLabel}–${endLabel}`;
   }
 
   return (
@@ -458,6 +510,10 @@ export default function MeetFlow() {
               <p className="text-sm text-muted-foreground mt-0.5">
                 所有 {members.length} 位成員都空閒的時段
               </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                顯示時區：{browserTimeZone ?? "偵測中…"}（基準時區：
+                {BASE_TIME_ZONE}）
+              </p>
             </div>
 
             <Card>
@@ -481,13 +537,12 @@ export default function MeetFlow() {
             {commonSlots.length > 0 && (
               <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
                 {commonSlots.map((s) => {
-                  const [d, h] = s.split("-").map(Number);
                   return (
                     <div
                       key={s}
                       className="text-sm px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 dark:bg-emerald-950 dark:border-emerald-800 dark:text-emerald-200"
                     >
-                      {DAYS[d]} {h}:00–{h + 1}:00
+                      你的 {formatSlotForViewer(s)}
                     </div>
                   );
                 })}
