@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
-import { Plus, Users, Calendar, User, CalendarCheck } from "lucide-react";
+import { Plus, Users, Calendar, User, CalendarCheck, Trash2 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -268,6 +268,15 @@ export default function MeetFlow() {
     setOpen(false);
   }
 
+  function deleteMember(id: string) {
+    if (id === "me") return; // Prevent deleting yourself
+    setMembers((prev) => prev.filter((m) => m.id !== id));
+    // Reset view if viewing deleted member
+    if (viewId === id) {
+      setViewId(others.find((m) => m.id !== id)?.id || "");
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background">
       {/* ── Header ── */}
@@ -342,7 +351,7 @@ export default function MeetFlow() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {members.map((m) => (
                 <Card key={m.id}>
-                  <CardContent className="p-4 flex items-center gap-3">
+                  <CardContent className="p-4 flex items-center gap-3 relative">
                     <Avatar className="w-10 h-10 shrink-0">
                       <AvatarFallback
                         className={`${m.color} text-white text-sm font-semibold`}
@@ -356,11 +365,23 @@ export default function MeetFlow() {
                         {m.availability.length} 個空閒時段
                       </p>
                     </div>
-                    {m.id === "me" && (
-                      <Badge variant="outline" className="text-xs shrink-0">
-                        你
-                      </Badge>
-                    )}
+                    <div className="flex items-center gap-2 shrink-0">
+                      {m.id === "me" && (
+                        <Badge variant="outline" className="text-xs">
+                          你
+                        </Badge>
+                      )}
+                      {m.id !== "me" && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => deleteMember(m.id)}
+                          className="h-6 w-6 p-0 hover:bg-destructive/10 hover:text-destructive"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
               ))}
