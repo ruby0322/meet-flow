@@ -14,24 +14,20 @@ import {
 } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
-import { Plus, Users, Calendar, User, CalendarCheck } from "lucide-react";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type TimeSlot = string; // "day-hour", e.g. "0-9" = Monday 9am
-
-type Member = {
-  id: string;
-  name: string;
-  color: string;
-  availability: TimeSlot[];
-};
+import {
+  Plus,
+  Users,
+  Calendar,
+  User,
+  CalendarCheck,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const DAYS = ["週一", "週二", "週三", "週四", "週五"];
 const HOURS = [9, 10, 11, 12, 13, 14, 15, 16, 17];
-const WEEKS = ["本週", "下週", "下下週", "第四週"];
 
 const COLORS = [
   "bg-orange-500",
@@ -43,9 +39,43 @@ const COLORS = [
   "bg-cyan-500",
 ];
 
-const slot = (week: number, day: number, hour: number): TimeSlot => `${week}-${day}-${hour}`;
+// Helper: Format date to YYYY-MM-DD
+function formatDateKey(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+// Slot ID: YYYY-MM-DD-HH
+const slot = (date: Date, hour: number): TimeSlot =>
+  `${formatDateKey(date)}-${hour}`;
+
+// Helper: Get Monday of the current week
+function getMonday(d: Date) {
+  const date = new Date(d);
+  const day = date.getDay();
+  const diff = date.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is sunday
+  return new Date(date.setDate(diff));
+}
+
+// Helper: Get dates for Mon-Fri of a given week base
+function getWeekDates(baseDate: Date) {
+  const dates = [];
+  const start = getMonday(baseDate);
+  for (let i = 0; i < 5; i++) {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    dates.push(d);
+  }
+  return dates;
+}
 
 // ─── Fake initial data ────────────────────────────────────────────────────────
+
+// Generate initial dates based on *current* week
+const now = new Date();
+const currentWeek = getWeekDates(now);
 
 // 假資料：三人皆有「週三 9–11」共同空閒，方便展示
 const INITIAL_MEMBERS: Member[] = [
@@ -54,11 +84,11 @@ const INITIAL_MEMBERS: Member[] = [
     name: "我",
     color: "bg-blue-500",
     availability: [
-      slot(0, 0, 9), slot(0, 0, 10), slot(0, 0, 11),          // Mon 9–12
-      slot(0, 0, 14), slot(0, 0, 15), slot(0, 0, 16),         // Mon 14–17
-      slot(0, 2, 9),  slot(0, 2, 10), slot(0, 2, 11),         // Wed 9–12（共同）
-      slot(0, 3, 14), slot(0, 3, 15), slot(0, 3, 16),         // Thu 14–17
-      slot(0, 4, 9),  slot(0, 4, 10),                      // Fri 9–11
+      slot(currentWeek[0], 9), slot(currentWeek[0], 10), slot(currentWeek[0], 11),  // Mon 9–12
+      slot(currentWeek[0], 14), slot(currentWeek[0], 15), slot(currentWeek[0], 16), // Mon 14–17
+      slot(currentWeek[2], 9),  slot(currentWeek[2], 10), slot(currentWeek[2], 11), // Wed 9–12（共同）
+      slot(currentWeek[3], 14), slot(currentWeek[3], 15), slot(currentWeek[3], 16), // Thu 14–17
+      slot(currentWeek[4], 9),  slot(currentWeek[4], 10),                           // Fri 9–11
     ],
   },
   {
@@ -66,10 +96,10 @@ const INITIAL_MEMBERS: Member[] = [
     name: "小梁",
     color: "bg-green-500",
     availability: [
-      slot(0, 0, 9),  slot(0, 0, 10), slot(0, 0, 11),         // Mon 9–12
-      slot(0, 2, 9),  slot(0, 2, 10), slot(0, 2, 11),         // Wed 9–12（共同）
-      slot(0, 2, 14), slot(0, 2, 15), slot(0, 2, 16),         // Wed 14–17
-      slot(0, 4, 9),  slot(0, 4, 10),                      // Fri 9–11
+      slot(currentWeek[0], 9),  slot(currentWeek[0], 10), slot(currentWeek[0], 11), // Mon 9–12
+      slot(currentWeek[2], 9),  slot(currentWeek[2], 10), slot(currentWeek[2], 11), // Wed 9–12（共同）
+      slot(currentWeek[2], 14), slot(currentWeek[2], 15), slot(currentWeek[2], 16), // Wed 14–17
+      slot(currentWeek[4], 9),  slot(currentWeek[4], 10),                           // Fri 9–11
     ],
   },
   {
@@ -77,9 +107,9 @@ const INITIAL_MEMBERS: Member[] = [
     name: "盧盧",
     color: "bg-purple-500",
     availability: [
-      slot(0, 1, 10), slot(0, 1, 11), slot(0, 1, 12),         // Tue 10–13
-      slot(0, 2, 9),  slot(0, 2, 10), slot(0, 2, 11),         // Wed 9–12（共同）
-      slot(0, 3, 14), slot(0, 3, 15),                      // Thu 14–16
+      slot(currentWeek[1], 10), slot(currentWeek[1], 11), slot(currentWeek[1], 12), // Tue 10–13
+      slot(currentWeek[2], 9),  slot(currentWeek[2], 10), slot(currentWeek[2], 11), // Wed 9–12（共同）
+      slot(currentWeek[3], 14), slot(currentWeek[3], 15),                           // Thu 14–16
     ],
   },
 ];
@@ -98,12 +128,12 @@ function ScheduleGrid({
   availability,
   onBatchToggle,
   emerald = false,
-  week = 0,
+  weekDates,
 }: {
   availability: TimeSlot[];
   onBatchToggle?: (slots: TimeSlot[], fill: boolean) => void;
   emerald?: boolean;
-  week?: number;
+  weekDates: Date[];
 }) {
   const [drag, setDrag] = useState<DragState | null>(null);
   const dragging = useRef(false);
@@ -119,14 +149,15 @@ function ScheduleGrid({
       const selected: TimeSlot[] = [];
       for (let d = d0; d <= d1; d++)
         for (let hi = h0; hi <= h1; hi++)
-          selected.push(slot(week, d, HOURS[hi]));
+           // Use the actual date from weekDates[d]
+          selected.push(slot(weekDates[d], HOURS[hi]));
       onBatchToggle?.(selected, drag.filling);
       dragging.current = false;
       setDrag(null);
     }
     document.addEventListener("mouseup", handleMouseUp);
     return () => document.removeEventListener("mouseup", handleMouseUp);
-  }, [drag, onBatchToggle, week]);
+  }, [drag, onBatchToggle, weekDates]);
 
   function inDragRect(d: number, hi: number): boolean {
     if (!drag) return false;
@@ -143,9 +174,12 @@ function ScheduleGrid({
         <thead>
           <tr>
             <th className="w-14" />
-            {DAYS.map((d) => (
-              <th key={d} className="p-2 text-center font-medium text-sm">
-                {d}
+            {weekDates.map((d, i) => (
+              <th key={i} className="p-2 text-center font-medium text-sm">
+                <div>{DAYS[i]}</div>
+                <div className="text-xs text-muted-foreground font-normal">
+                  {d.getMonth() + 1}/{d.getDate()}
+                </div>
               </th>
             ))}
           </tr>
@@ -156,10 +190,10 @@ function ScheduleGrid({
               <td className="text-right pr-3 text-muted-foreground text-xs py-0.5 whitespace-nowrap">
                 {h}:00
               </td>
-              {DAYS.map((_, d) => {
-                const s = slot(week, d, h);
+              {weekDates.map((d, di) => {
+                const s = slot(d, h);
                 const active = availability.includes(s);
-                const inRect = inDragRect(d, hi);
+                const inRect = inDragRect(di, hi);
 
                 let cellClass: string;
                 if (inRect) {
@@ -176,7 +210,7 @@ function ScheduleGrid({
                 }
 
                 return (
-                  <td key={d} className="p-0.5">
+                  <td key={di} className="p-0.5">
                     <div
                       className={`h-8 rounded border transition-colors ${cellClass} ${onBatchToggle ? "cursor-pointer" : "cursor-default"}`}
                       onMouseDown={(e) => {
@@ -184,9 +218,9 @@ function ScheduleGrid({
                         e.preventDefault();
                         dragging.current = true;
                         setDrag({
-                          startDay: d,
+                          startDay: di,
                           startHourIdx: hi,
-                          curDay: d,
+                          curDay: di,
                           curHourIdx: hi,
                           filling: !active,
                         });
@@ -194,7 +228,7 @@ function ScheduleGrid({
                       onMouseOver={() => {
                         if (!dragging.current) return;
                         setDrag((prev) =>
-                          prev ? { ...prev, curDay: d, curHourIdx: hi } : prev
+                          prev ? { ...prev, curDay: di, curHourIdx: hi } : prev
                         );
                       }}
                     />
@@ -271,11 +305,32 @@ function LoginScreen({ onJoin }: { onJoin: (name: string) => void }) {
 
 export default function MeetFlow() {
   const [loggedIn, setLoggedIn] = useState(false);
-  const [week, setWeek] = useState(0);
+  const [baseDate, setBaseDate] = useState(() => {
+    const d = new Date();
+    // Start at current week's Monday
+    return getMonday(d);
+  });
+
   const [members, setMembers] = useState<Member[]>(INITIAL_MEMBERS);
   const [newName, setNewName] = useState("");
   const [open, setOpen] = useState(false);
   const [viewId, setViewId] = useState("xiao-liang");
+
+  const weekDates = Array.from({ length: 5 }).map((_, i) => {
+    const d = new Date(baseDate);
+    d.setDate(baseDate.getDate() + i);
+    return d;
+  });
+
+  const weekLabel = `${weekDates[0].getMonth() + 1}/${weekDates[0].getDate()} - ${weekDates[4].getMonth() + 1}/${weekDates[4].getDate()}`;
+
+  function changeWeek(delta: number) {
+    setBaseDate((prev) => {
+      const next = new Date(prev);
+      next.setDate(prev.getDate() + delta * 7);
+      return next;
+    });
+  }
 
   if (!loggedIn) {
     return (
@@ -294,10 +349,10 @@ export default function MeetFlow() {
   const others = members.filter((m) => m.id !== "me");
   const viewing = members.find((m) => m.id === viewId) ?? others[0];
 
-  const commonSlots = DAYS.flatMap((_, d) =>
+  const commonSlots = DAYS.flatMap((_, i) =>
     HOURS.filter((h) =>
-      members.every((m) => m.availability.includes(slot(week, d, h)))
-    ).map((h) => slot(week, d, h))
+      members.every((m) => m.availability.includes(slot(weekDates[i], h)))
+    ).map((h) => slot(weekDates[i], h))
   );
 
   function batchToggleMySlots(slots: TimeSlot[], fill: boolean) {
@@ -348,18 +403,16 @@ export default function MeetFlow() {
 
       {/* ── Main ── */}
       <main className="max-w-4xl mx-auto px-6 py-8">
-        <div className="flex justify-center mb-6 gap-2">
-           {WEEKS.map((label, idx) => (
-             <Button
-               key={idx}
-               variant={week === idx ? "default" : "outline"}
-               onClick={() => setWeek(idx)}
-               size="sm"
-               className="rounded-full px-4"
-             >
-               {label}
-             </Button>
-           ))}
+        <div className="flex items-center justify-center mb-6 gap-4">
+          <Button variant="outline" size="icon" onClick={() => changeWeek(-1)}>
+            <ChevronLeft className="w-4 h-4" />
+          </Button>
+          <div className="text-base font-medium w-32 text-center">
+            {weekLabel}
+          </div>
+          <Button variant="outline" size="icon" onClick={() => changeWeek(1)}>
+            <ChevronRight className="w-4 h-4" />
+          </Button>
         </div>
 
         <Tabs defaultValue="my-schedule">
@@ -449,7 +502,7 @@ export default function MeetFlow() {
           {/* ── Tab 2: My Schedule ── */}
           <TabsContent value="my-schedule">
             <div className="mb-5">
-              <h2 className="text-base font-semibold">我的時間表 ({WEEKS[week]})</h2>
+              <h2 className="text-base font-semibold">我的時間表</h2>
               <p className="text-sm text-muted-foreground mt-0.5">
                 點擊或拖曳選取矩形範圍來批次切換空閒時段
               </p>
@@ -465,7 +518,7 @@ export default function MeetFlow() {
                 <ScheduleGrid
                   availability={me.availability}
                   onBatchToggle={batchToggleMySlots}
-                  week={week}
+                  weekDates={weekDates}
                 />
               </CardContent>
             </Card>
@@ -474,7 +527,7 @@ export default function MeetFlow() {
           {/* ── Tab 3: View Member ── */}
           <TabsContent value="view-member">
             <div className="mb-5">
-              <h2 className="text-base font-semibold">查看成員時間表 ({WEEKS[week]})</h2>
+              <h2 className="text-base font-semibold">查看成員時間表</h2>
               <p className="text-sm text-muted-foreground mt-0.5">
                 選擇成員來查看他們的空閒時段
               </p>
@@ -523,7 +576,7 @@ export default function MeetFlow() {
                           },
                         ]}
                       />
-                      <ScheduleGrid availability={viewing.availability} week={week} />
+                      <ScheduleGrid availability={viewing.availability} weekDates={weekDates} />
                     </CardContent>
                   </Card>
                 )}
@@ -534,7 +587,7 @@ export default function MeetFlow() {
           {/* ── Tab 4: Common Availability ── */}
           <TabsContent value="common">
             <div className="mb-5">
-              <h2 className="text-base font-semibold">共同空閒時間 ({WEEKS[week]})</h2>
+              <h2 className="text-base font-semibold">共同空閒時間</h2>
               <p className="text-sm text-muted-foreground mt-0.5">
                 所有 {members.length} 位成員都空閒的時段
               </p>
@@ -553,7 +606,7 @@ export default function MeetFlow() {
                     目前沒有共同空閒時段
                   </p>
                 ) : (
-                  <ScheduleGrid availability={commonSlots} emerald week={week} />
+                  <ScheduleGrid availability={commonSlots} emerald weekDates={weekDates} />
                 )}
               </CardContent>
             </Card>
@@ -561,13 +614,15 @@ export default function MeetFlow() {
             {commonSlots.length > 0 && (
               <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
                 {commonSlots.map((s) => {
-                  const [w, d, h] = s.split("-").map(Number);
+                  const [y, m, d, h] = s.split("-").map(Number);
+                  // Careful: month is 1-based in our key
+                  const dateObj = new Date(y, m - 1, d);
                   return (
                     <div
                       key={s}
                       className="text-sm px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 dark:bg-emerald-950 dark:border-emerald-800 dark:text-emerald-200"
                     >
-                      {DAYS[d]} {h}:00–{h + 1}:00
+                      {dateObj.getMonth() + 1}/{dateObj.getDate()} ({DAYS[dateObj.getDay() === 0 ? 6 : dateObj.getDay() - 1]}) {h}:00–{h + 1}:00
                     </div>
                   );
                 })}
