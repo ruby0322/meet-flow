@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -14,23 +14,21 @@ import {
 } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
-import { Plus, Users, Calendar, User, CalendarCheck } from "lucide-react";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type TimeSlot = string; // "day-hour", e.g. "0-9" = Monday 9am
-
-type Member = {
-  id: string;
-  name: string;
-  color: string;
-  availability: TimeSlot[];
-};
+import {
+  Plus,
+  Users,
+  Calendar,
+  User,
+  CalendarCheck,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const DAYS = ["週一", "週二", "週三", "週四", "週五"];
 const HOURS = [9, 10, 11, 12, 13, 14, 15, 16, 17];
+
 const COLORS = [
   "bg-orange-500",
   "bg-pink-500",
@@ -41,9 +39,43 @@ const COLORS = [
   "bg-cyan-500",
 ];
 
-const slot = (day: number, hour: number): TimeSlot => `${day}-${hour}`;
+// Helper: Format date to YYYY-MM-DD
+function formatDateKey(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+// Slot ID: YYYY-MM-DD-HH
+const slot = (date: Date, hour: number): TimeSlot =>
+  `${formatDateKey(date)}-${hour}`;
+
+// Helper: Get Monday of the current week
+function getMonday(d: Date) {
+  const date = new Date(d);
+  const day = date.getDay();
+  const diff = date.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is sunday
+  return new Date(date.setDate(diff));
+}
+
+// Helper: Get dates for Mon-Fri of a given week base
+function getWeekDates(baseDate: Date) {
+  const dates = [];
+  const start = getMonday(baseDate);
+  for (let i = 0; i < 5; i++) {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    dates.push(d);
+  }
+  return dates;
+}
 
 // ─── Fake initial data ────────────────────────────────────────────────────────
+
+// Generate initial dates based on *current* week
+const now = new Date();
+const currentWeek = getWeekDates(now);
 
 // 假資料：三人皆有「週三 9–11」共同空閒，方便展示
 const INITIAL_MEMBERS: Member[] = [
@@ -52,11 +84,11 @@ const INITIAL_MEMBERS: Member[] = [
     name: "我",
     color: "bg-blue-500",
     availability: [
-      slot(0, 9), slot(0, 10), slot(0, 11),          // Mon 9–12
-      slot(0, 14), slot(0, 15), slot(0, 16),         // Mon 14–17
-      slot(2, 9),  slot(2, 10), slot(2, 11),         // Wed 9–12（共同）
-      slot(3, 14), slot(3, 15), slot(3, 16),         // Thu 14–17
-      slot(4, 9),  slot(4, 10),                      // Fri 9–11
+      slot(currentWeek[0], 9), slot(currentWeek[0], 10), slot(currentWeek[0], 11),  // Mon 9–12
+      slot(currentWeek[0], 14), slot(currentWeek[0], 15), slot(currentWeek[0], 16), // Mon 14–17
+      slot(currentWeek[2], 9),  slot(currentWeek[2], 10), slot(currentWeek[2], 11), // Wed 9–12（共同）
+      slot(currentWeek[3], 14), slot(currentWeek[3], 15), slot(currentWeek[3], 16), // Thu 14–17
+      slot(currentWeek[4], 9),  slot(currentWeek[4], 10),                           // Fri 9–11
     ],
   },
   {
@@ -64,10 +96,10 @@ const INITIAL_MEMBERS: Member[] = [
     name: "小梁",
     color: "bg-green-500",
     availability: [
-      slot(0, 9),  slot(0, 10), slot(0, 11),         // Mon 9–12
-      slot(2, 9),  slot(2, 10), slot(2, 11),         // Wed 9–12（共同）
-      slot(2, 14), slot(2, 15), slot(2, 16),         // Wed 14–17
-      slot(4, 9),  slot(4, 10),                      // Fri 9–11
+      slot(currentWeek[0], 9),  slot(currentWeek[0], 10), slot(currentWeek[0], 11), // Mon 9–12
+      slot(currentWeek[2], 9),  slot(currentWeek[2], 10), slot(currentWeek[2], 11), // Wed 9–12（共同）
+      slot(currentWeek[2], 14), slot(currentWeek[2], 15), slot(currentWeek[2], 16), // Wed 14–17
+      slot(currentWeek[4], 9),  slot(currentWeek[4], 10),                           // Fri 9–11
     ],
   },
   {
@@ -75,56 +107,130 @@ const INITIAL_MEMBERS: Member[] = [
     name: "盧盧",
     color: "bg-purple-500",
     availability: [
-      slot(1, 10), slot(1, 11), slot(1, 12),         // Tue 10–13
-      slot(2, 9),  slot(2, 10), slot(2, 11),         // Wed 9–12（共同）
-      slot(3, 14), slot(3, 15),                      // Thu 14–16
+      slot(currentWeek[1], 10), slot(currentWeek[1], 11), slot(currentWeek[1], 12), // Tue 10–13
+      slot(currentWeek[2], 9),  slot(currentWeek[2], 10), slot(currentWeek[2], 11), // Wed 9–12（共同）
+      slot(currentWeek[3], 14), slot(currentWeek[3], 15),                           // Thu 14–16
     ],
   },
 ];
 
 // ─── Schedule Grid Component ──────────────────────────────────────────────────
 
+type DragState = {
+  startDay: number;
+  startHourIdx: number;
+  curDay: number;
+  curHourIdx: number;
+  filling: boolean; // true = turning slots ON, false = turning OFF
+};
+
 function ScheduleGrid({
   availability,
-  onToggle,
+  onBatchToggle,
   emerald = false,
+  weekDates,
 }: {
   availability: TimeSlot[];
-  onToggle?: (day: number, hour: number) => void;
+  onBatchToggle?: (slots: TimeSlot[], fill: boolean) => void;
   emerald?: boolean;
+  weekDates: Date[];
 }) {
+  const [drag, setDrag] = useState<DragState | null>(null);
+  const dragging = useRef(false);
+
+  // Commit the selection when mouse is released anywhere
+  useEffect(() => {
+    function handleMouseUp() {
+      if (!dragging.current || !drag) return;
+      const d0 = Math.min(drag.startDay, drag.curDay);
+      const d1 = Math.max(drag.startDay, drag.curDay);
+      const h0 = Math.min(drag.startHourIdx, drag.curHourIdx);
+      const h1 = Math.max(drag.startHourIdx, drag.curHourIdx);
+      const selected: TimeSlot[] = [];
+      for (let d = d0; d <= d1; d++)
+        for (let hi = h0; hi <= h1; hi++)
+           // Use the actual date from weekDates[d]
+          selected.push(slot(weekDates[d], HOURS[hi]));
+      onBatchToggle?.(selected, drag.filling);
+      dragging.current = false;
+      setDrag(null);
+    }
+    document.addEventListener("mouseup", handleMouseUp);
+    return () => document.removeEventListener("mouseup", handleMouseUp);
+  }, [drag, onBatchToggle, weekDates]);
+
+  function inDragRect(d: number, hi: number): boolean {
+    if (!drag) return false;
+    const d0 = Math.min(drag.startDay, drag.curDay);
+    const d1 = Math.max(drag.startDay, drag.curDay);
+    const h0 = Math.min(drag.startHourIdx, drag.curHourIdx);
+    const h1 = Math.max(drag.startHourIdx, drag.curHourIdx);
+    return d >= d0 && d <= d1 && hi >= h0 && hi <= h1;
+  }
+
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto select-none">
       <table className="w-full text-sm border-collapse">
         <thead>
           <tr>
             <th className="w-14" />
-            {DAYS.map((d) => (
-              <th key={d} className="p-2 text-center font-medium text-sm">
-                {d}
+            {weekDates.map((d, i) => (
+              <th key={i} className="p-2 text-center font-medium text-sm">
+                <div>{DAYS[i]}</div>
+                <div className="text-xs text-muted-foreground font-normal">
+                  {d.getMonth() + 1}/{d.getDate()}
+                </div>
               </th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {HOURS.map((h) => (
+          {HOURS.map((h, hi) => (
             <tr key={h}>
               <td className="text-right pr-3 text-muted-foreground text-xs py-0.5 whitespace-nowrap">
                 {h}:00
               </td>
-              {DAYS.map((_, d) => {
+              {weekDates.map((d, di) => {
                 const s = slot(d, h);
                 const active = availability.includes(s);
-                const cellClass = active
-                  ? emerald
+                const inRect = inDragRect(di, hi);
+
+                let cellClass: string;
+                if (inRect) {
+                  // Preview: show what the result will be
+                  cellClass = drag!.filling
+                    ? "bg-primary/60 border-primary/60"
+                    : "bg-muted border-border opacity-40";
+                } else if (active) {
+                  cellClass = emerald
                     ? "bg-emerald-400 border-emerald-400"
-                    : "bg-primary border-primary"
-                  : "bg-muted border-border hover:bg-muted/60";
+                    : "bg-primary border-primary";
+                } else {
+                  cellClass = "bg-muted border-border hover:bg-muted/60";
+                }
+
                 return (
-                  <td key={d} className="p-0.5">
+                  <td key={di} className="p-0.5">
                     <div
-                      className={`h-8 rounded border transition-colors ${cellClass} ${onToggle ? "cursor-pointer" : "cursor-default"}`}
-                      onClick={() => onToggle?.(d, h)}
+                      className={`h-8 rounded border transition-colors ${cellClass} ${onBatchToggle ? "cursor-pointer" : "cursor-default"}`}
+                      onMouseDown={(e) => {
+                        if (!onBatchToggle) return;
+                        e.preventDefault();
+                        dragging.current = true;
+                        setDrag({
+                          startDay: di,
+                          startHourIdx: hi,
+                          curDay: di,
+                          curHourIdx: hi,
+                          filling: !active,
+                        });
+                      }}
+                      onMouseOver={() => {
+                        if (!dragging.current) return;
+                        setDrag((prev) =>
+                          prev ? { ...prev, curDay: di, curHourIdx: hi } : prev
+                        );
+                      }}
                     />
                   </td>
                 );
@@ -152,35 +258,113 @@ function Legend({ items }: { items: { color: string; label: string }[] }) {
   );
 }
 
+// ─── Login Screen ─────────────────────────────────────────────────────────────
+
+function LoginScreen({ onJoin }: { onJoin: (name: string) => void }) {
+  const [name, setName] = useState("");
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      <Card className="w-full max-w-md shadow-lg">
+        <CardHeader className="text-center space-y-2">
+          <div className="flex justify-center mb-2">
+            <div className="p-3 bg-blue-100 rounded-full">
+              <CalendarCheck className="w-8 h-8 text-blue-600" />
+            </div>
+          </div>
+          <CardTitle className="text-2xl font-bold">歡迎來到 MeetFlow</CardTitle>
+          <p className="text-muted-foreground text-sm">
+            請輸入您的名稱以開始安排會議時間
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <Input
+              placeholder="您的名字（例如：小明）"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && name.trim() && onJoin(name)}
+              autoFocus
+            />
+            <Button
+              className="w-full"
+              size="lg"
+              onClick={() => onJoin(name)}
+              disabled={!name.trim()}
+            >
+              進入系統
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 // ─── Main App ─────────────────────────────────────────────────────────────────
 
 export default function MeetFlow() {
+  const [loggedIn, setLoggedIn] = useState(false);
+  const [baseDate, setBaseDate] = useState(() => {
+    const d = new Date();
+    // Start at current week's Monday
+    return getMonday(d);
+  });
+
   const [members, setMembers] = useState<Member[]>(INITIAL_MEMBERS);
   const [newName, setNewName] = useState("");
   const [open, setOpen] = useState(false);
   const [viewId, setViewId] = useState("xiao-liang");
 
+  const weekDates = Array.from({ length: 5 }).map((_, i) => {
+    const d = new Date(baseDate);
+    d.setDate(baseDate.getDate() + i);
+    return d;
+  });
+
+  const weekLabel = `${weekDates[0].getMonth() + 1}/${weekDates[0].getDate()} - ${weekDates[4].getMonth() + 1}/${weekDates[4].getDate()}`;
+
+  function changeWeek(delta: number) {
+    setBaseDate((prev) => {
+      const next = new Date(prev);
+      next.setDate(prev.getDate() + delta * 7);
+      return next;
+    });
+  }
+
+  if (!loggedIn) {
+    return (
+      <LoginScreen
+        onJoin={(name) => {
+          setMembers((prev) =>
+            prev.map((m) => (m.id === "me" ? { ...m, name } : m))
+          );
+          setLoggedIn(true);
+        }}
+      />
+    );
+  }
+
   const me = members.find((m) => m.id === "me")!;
   const others = members.filter((m) => m.id !== "me");
   const viewing = members.find((m) => m.id === viewId) ?? others[0];
 
-  const commonSlots = DAYS.flatMap((_, d) =>
+  const commonSlots = DAYS.flatMap((_, i) =>
     HOURS.filter((h) =>
-      members.every((m) => m.availability.includes(slot(d, h)))
-    ).map((h) => slot(d, h))
+      members.every((m) => m.availability.includes(slot(weekDates[i], h)))
+    ).map((h) => slot(weekDates[i], h))
   );
 
-  function toggleMySlot(day: number, hour: number) {
-    const s = slot(day, hour);
+  function batchToggleMySlots(slots: TimeSlot[], fill: boolean) {
     setMembers((prev) =>
       prev.map((m) =>
         m.id !== "me"
           ? m
           : {
               ...m,
-              availability: m.availability.includes(s)
-                ? m.availability.filter((x) => x !== s)
-                : [...m.availability, s],
+              availability: fill
+                ? [...new Set([...m.availability, ...slots])]
+                : m.availability.filter((x) => !slots.includes(x)),
             }
       )
     );
@@ -211,20 +395,35 @@ export default function MeetFlow() {
           <Badge variant="secondary" className="text-xs font-normal">
             Beta
           </Badge>
+          <div className="ml-auto text-sm text-muted-foreground">
+            Hi, <span className="font-medium text-foreground">{me.name}</span>
+          </div>
         </div>
       </header>
 
       {/* ── Main ── */}
       <main className="max-w-4xl mx-auto px-6 py-8">
-        <Tabs defaultValue="members">
-          <TabsList className="mb-8 h-10">
-            <TabsTrigger value="members" className="gap-1.5 text-sm">
-              <Users className="w-3.5 h-3.5" />
-              成員
-            </TabsTrigger>
+        <div className="flex items-center justify-center mb-6 gap-4">
+          <Button variant="outline" size="icon" onClick={() => changeWeek(-1)}>
+            <ChevronLeft className="w-4 h-4" />
+          </Button>
+          <div className="text-base font-medium w-32 text-center">
+            {weekLabel}
+          </div>
+          <Button variant="outline" size="icon" onClick={() => changeWeek(1)}>
+            <ChevronRight className="w-4 h-4" />
+          </Button>
+        </div>
+
+        <Tabs defaultValue="my-schedule">
+          <TabsList className="mb-8 h-10 w-full justify-start overflow-x-auto">
             <TabsTrigger value="my-schedule" className="gap-1.5 text-sm">
               <User className="w-3.5 h-3.5" />
               我的時間表
+            </TabsTrigger>
+            <TabsTrigger value="members" className="gap-1.5 text-sm">
+              <Users className="w-3.5 h-3.5" />
+              成員
             </TabsTrigger>
             <TabsTrigger value="view-member" className="gap-1.5 text-sm">
               <Calendar className="w-3.5 h-3.5" />
@@ -305,7 +504,7 @@ export default function MeetFlow() {
             <div className="mb-5">
               <h2 className="text-base font-semibold">我的時間表</h2>
               <p className="text-sm text-muted-foreground mt-0.5">
-                點擊格子來切換你的空閒時段
+                點擊或拖曳選取矩形範圍來批次切換空閒時段
               </p>
             </div>
             <Card>
@@ -318,7 +517,8 @@ export default function MeetFlow() {
                 />
                 <ScheduleGrid
                   availability={me.availability}
-                  onToggle={toggleMySlot}
+                  onBatchToggle={batchToggleMySlots}
+                  weekDates={weekDates}
                 />
               </CardContent>
             </Card>
@@ -376,7 +576,7 @@ export default function MeetFlow() {
                           },
                         ]}
                       />
-                      <ScheduleGrid availability={viewing.availability} />
+                      <ScheduleGrid availability={viewing.availability} weekDates={weekDates} />
                     </CardContent>
                   </Card>
                 )}
@@ -406,7 +606,7 @@ export default function MeetFlow() {
                     目前沒有共同空閒時段
                   </p>
                 ) : (
-                  <ScheduleGrid availability={commonSlots} emerald />
+                  <ScheduleGrid availability={commonSlots} emerald weekDates={weekDates} />
                 )}
               </CardContent>
             </Card>
@@ -414,13 +614,15 @@ export default function MeetFlow() {
             {commonSlots.length > 0 && (
               <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
                 {commonSlots.map((s) => {
-                  const [d, h] = s.split("-").map(Number);
+                  const [y, m, d, h] = s.split("-").map(Number);
+                  // Careful: month is 1-based in our key
+                  const dateObj = new Date(y, m - 1, d);
                   return (
                     <div
                       key={s}
                       className="text-sm px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 dark:bg-emerald-950 dark:border-emerald-800 dark:text-emerald-200"
                     >
-                      {DAYS[d]} {h}:00–{h + 1}:00
+                      {dateObj.getMonth() + 1}/{dateObj.getDate()} ({DAYS[dateObj.getDay() === 0 ? 6 : dateObj.getDay() - 1]}) {h}:00–{h + 1}:00
                     </div>
                   );
                 })}
