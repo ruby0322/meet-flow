@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
-import { Plus, Users, Calendar, User, CalendarCheck, Trash2 } from "lucide-react";
+import { Plus, Users, Calendar, User, CalendarCheck } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -220,13 +220,70 @@ function Legend({ items }: { items: { color: string; label: string }[] }) {
   );
 }
 
+// ─── Login Screen ─────────────────────────────────────────────────────────────
+
+function LoginScreen({ onJoin }: { onJoin: (name: string) => void }) {
+  const [name, setName] = useState("");
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      <Card className="w-full max-w-md shadow-lg">
+        <CardHeader className="text-center space-y-2">
+          <div className="flex justify-center mb-2">
+            <div className="p-3 bg-blue-100 rounded-full">
+              <CalendarCheck className="w-8 h-8 text-blue-600" />
+            </div>
+          </div>
+          <CardTitle className="text-2xl font-bold">歡迎來到 MeetFlow</CardTitle>
+          <p className="text-muted-foreground text-sm">
+            請輸入您的名稱以開始安排會議時間
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <Input
+              placeholder="您的名字（例如：小明）"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && name.trim() && onJoin(name)}
+              autoFocus
+            />
+            <Button
+              className="w-full"
+              size="lg"
+              onClick={() => onJoin(name)}
+              disabled={!name.trim()}
+            >
+              進入系統
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 // ─── Main App ─────────────────────────────────────────────────────────────────
 
 export default function MeetFlow() {
+  const [loggedIn, setLoggedIn] = useState(false);
   const [members, setMembers] = useState<Member[]>(INITIAL_MEMBERS);
   const [newName, setNewName] = useState("");
   const [open, setOpen] = useState(false);
   const [viewId, setViewId] = useState("xiao-liang");
+
+  if (!loggedIn) {
+    return (
+      <LoginScreen
+        onJoin={(name) => {
+          setMembers((prev) =>
+            prev.map((m) => (m.id === "me" ? { ...m, name } : m))
+          );
+          setLoggedIn(true);
+        }}
+      />
+    );
+  }
 
   const me = members.find((m) => m.id === "me")!;
   const others = members.filter((m) => m.id !== "me");
@@ -268,14 +325,6 @@ export default function MeetFlow() {
     setOpen(false);
   }
 
-  function deleteMember(id: string) {
-    if (id === "me") return;
-    if (window.confirm("確定要刪除這位成員嗎？")) {
-      setMembers((prev) => prev.filter((m) => m.id !== id));
-      if (viewId === id) setViewId("me");
-    }
-  }
-
   return (
     <div className="min-h-screen bg-background">
       {/* ── Header ── */}
@@ -286,20 +335,23 @@ export default function MeetFlow() {
           <Badge variant="secondary" className="text-xs font-normal">
             Beta
           </Badge>
+          <div className="ml-auto text-sm text-muted-foreground">
+            Hi, <span className="font-medium text-foreground">{me.name}</span>
+          </div>
         </div>
       </header>
 
       {/* ── Main ── */}
       <main className="max-w-4xl mx-auto px-6 py-8">
-        <Tabs defaultValue="members">
+        <Tabs defaultValue="my-schedule">
           <TabsList className="mb-8 h-10">
-            <TabsTrigger value="members" className="gap-1.5 text-sm">
-              <Users className="w-3.5 h-3.5" />
-              成員
-            </TabsTrigger>
             <TabsTrigger value="my-schedule" className="gap-1.5 text-sm">
               <User className="w-3.5 h-3.5" />
               我的時間表
+            </TabsTrigger>
+            <TabsTrigger value="members" className="gap-1.5 text-sm">
+              <Users className="w-3.5 h-3.5" />
+              成員
             </TabsTrigger>
             <TabsTrigger value="view-member" className="gap-1.5 text-sm">
               <Calendar className="w-3.5 h-3.5" />
@@ -364,19 +416,10 @@ export default function MeetFlow() {
                         {m.availability.length} 個空閒時段
                       </p>
                     </div>
-                    {m.id === "me" ? (
+                    {m.id === "me" && (
                       <Badge variant="outline" className="text-xs shrink-0">
                         你
                       </Badge>
-                    ) : (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
-                        onClick={() => deleteMember(m.id)}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
                     )}
                   </CardContent>
                 </Card>
