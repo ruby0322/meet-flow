@@ -31,6 +31,8 @@ type Member = {
 
 const DAYS = ["週一", "週二", "週三", "週四", "週五"];
 const HOURS = [9, 10, 11, 12, 13, 14, 15, 16, 17];
+const WEEKS = ["本週", "下週", "下下週", "第四週"];
+
 const COLORS = [
   "bg-orange-500",
   "bg-pink-500",
@@ -41,7 +43,7 @@ const COLORS = [
   "bg-cyan-500",
 ];
 
-const slot = (day: number, hour: number): TimeSlot => `${day}-${hour}`;
+const slot = (week: number, day: number, hour: number): TimeSlot => `${week}-${day}-${hour}`;
 
 // ─── Fake initial data ────────────────────────────────────────────────────────
 
@@ -52,11 +54,11 @@ const INITIAL_MEMBERS: Member[] = [
     name: "我",
     color: "bg-blue-500",
     availability: [
-      slot(0, 9), slot(0, 10), slot(0, 11),          // Mon 9–12
-      slot(0, 14), slot(0, 15), slot(0, 16),         // Mon 14–17
-      slot(2, 9),  slot(2, 10), slot(2, 11),         // Wed 9–12（共同）
-      slot(3, 14), slot(3, 15), slot(3, 16),         // Thu 14–17
-      slot(4, 9),  slot(4, 10),                      // Fri 9–11
+      slot(0, 0, 9), slot(0, 0, 10), slot(0, 0, 11),          // Mon 9–12
+      slot(0, 0, 14), slot(0, 0, 15), slot(0, 0, 16),         // Mon 14–17
+      slot(0, 2, 9),  slot(0, 2, 10), slot(0, 2, 11),         // Wed 9–12（共同）
+      slot(0, 3, 14), slot(0, 3, 15), slot(0, 3, 16),         // Thu 14–17
+      slot(0, 4, 9),  slot(0, 4, 10),                      // Fri 9–11
     ],
   },
   {
@@ -64,10 +66,10 @@ const INITIAL_MEMBERS: Member[] = [
     name: "小梁",
     color: "bg-green-500",
     availability: [
-      slot(0, 9),  slot(0, 10), slot(0, 11),         // Mon 9–12
-      slot(2, 9),  slot(2, 10), slot(2, 11),         // Wed 9–12（共同）
-      slot(2, 14), slot(2, 15), slot(2, 16),         // Wed 14–17
-      slot(4, 9),  slot(4, 10),                      // Fri 9–11
+      slot(0, 0, 9),  slot(0, 0, 10), slot(0, 0, 11),         // Mon 9–12
+      slot(0, 2, 9),  slot(0, 2, 10), slot(0, 2, 11),         // Wed 9–12（共同）
+      slot(0, 2, 14), slot(0, 2, 15), slot(0, 2, 16),         // Wed 14–17
+      slot(0, 4, 9),  slot(0, 4, 10),                      // Fri 9–11
     ],
   },
   {
@@ -75,9 +77,9 @@ const INITIAL_MEMBERS: Member[] = [
     name: "盧盧",
     color: "bg-purple-500",
     availability: [
-      slot(1, 10), slot(1, 11), slot(1, 12),         // Tue 10–13
-      slot(2, 9),  slot(2, 10), slot(2, 11),         // Wed 9–12（共同）
-      slot(3, 14), slot(3, 15),                      // Thu 14–16
+      slot(0, 1, 10), slot(0, 1, 11), slot(0, 1, 12),         // Tue 10–13
+      slot(0, 2, 9),  slot(0, 2, 10), slot(0, 2, 11),         // Wed 9–12（共同）
+      slot(0, 3, 14), slot(0, 3, 15),                      // Thu 14–16
     ],
   },
 ];
@@ -96,10 +98,12 @@ function ScheduleGrid({
   availability,
   onBatchToggle,
   emerald = false,
+  week = 0,
 }: {
   availability: TimeSlot[];
   onBatchToggle?: (slots: TimeSlot[], fill: boolean) => void;
   emerald?: boolean;
+  week?: number;
 }) {
   const [drag, setDrag] = useState<DragState | null>(null);
   const dragging = useRef(false);
@@ -115,14 +119,14 @@ function ScheduleGrid({
       const selected: TimeSlot[] = [];
       for (let d = d0; d <= d1; d++)
         for (let hi = h0; hi <= h1; hi++)
-          selected.push(slot(d, HOURS[hi]));
+          selected.push(slot(week, d, HOURS[hi]));
       onBatchToggle?.(selected, drag.filling);
       dragging.current = false;
       setDrag(null);
     }
     document.addEventListener("mouseup", handleMouseUp);
     return () => document.removeEventListener("mouseup", handleMouseUp);
-  }, [drag, onBatchToggle]);
+  }, [drag, onBatchToggle, week]);
 
   function inDragRect(d: number, hi: number): boolean {
     if (!drag) return false;
@@ -153,7 +157,7 @@ function ScheduleGrid({
                 {h}:00
               </td>
               {DAYS.map((_, d) => {
-                const s = slot(d, h);
+                const s = slot(week, d, h);
                 const active = availability.includes(s);
                 const inRect = inDragRect(d, hi);
 
@@ -267,6 +271,7 @@ function LoginScreen({ onJoin }: { onJoin: (name: string) => void }) {
 
 export default function MeetFlow() {
   const [loggedIn, setLoggedIn] = useState(false);
+  const [week, setWeek] = useState(0);
   const [members, setMembers] = useState<Member[]>(INITIAL_MEMBERS);
   const [newName, setNewName] = useState("");
   const [open, setOpen] = useState(false);
@@ -291,8 +296,8 @@ export default function MeetFlow() {
 
   const commonSlots = DAYS.flatMap((_, d) =>
     HOURS.filter((h) =>
-      members.every((m) => m.availability.includes(slot(d, h)))
-    ).map((h) => slot(d, h))
+      members.every((m) => m.availability.includes(slot(week, d, h)))
+    ).map((h) => slot(week, d, h))
   );
 
   function batchToggleMySlots(slots: TimeSlot[], fill: boolean) {
@@ -343,8 +348,22 @@ export default function MeetFlow() {
 
       {/* ── Main ── */}
       <main className="max-w-4xl mx-auto px-6 py-8">
+        <div className="flex justify-center mb-6 gap-2">
+           {WEEKS.map((label, idx) => (
+             <Button
+               key={idx}
+               variant={week === idx ? "default" : "outline"}
+               onClick={() => setWeek(idx)}
+               size="sm"
+               className="rounded-full px-4"
+             >
+               {label}
+             </Button>
+           ))}
+        </div>
+
         <Tabs defaultValue="my-schedule">
-          <TabsList className="mb-8 h-10">
+          <TabsList className="mb-8 h-10 w-full justify-start overflow-x-auto">
             <TabsTrigger value="my-schedule" className="gap-1.5 text-sm">
               <User className="w-3.5 h-3.5" />
               我的時間表
@@ -430,7 +449,7 @@ export default function MeetFlow() {
           {/* ── Tab 2: My Schedule ── */}
           <TabsContent value="my-schedule">
             <div className="mb-5">
-              <h2 className="text-base font-semibold">我的時間表</h2>
+              <h2 className="text-base font-semibold">我的時間表 ({WEEKS[week]})</h2>
               <p className="text-sm text-muted-foreground mt-0.5">
                 點擊或拖曳選取矩形範圍來批次切換空閒時段
               </p>
@@ -446,6 +465,7 @@ export default function MeetFlow() {
                 <ScheduleGrid
                   availability={me.availability}
                   onBatchToggle={batchToggleMySlots}
+                  week={week}
                 />
               </CardContent>
             </Card>
@@ -454,7 +474,7 @@ export default function MeetFlow() {
           {/* ── Tab 3: View Member ── */}
           <TabsContent value="view-member">
             <div className="mb-5">
-              <h2 className="text-base font-semibold">查看成員時間表</h2>
+              <h2 className="text-base font-semibold">查看成員時間表 ({WEEKS[week]})</h2>
               <p className="text-sm text-muted-foreground mt-0.5">
                 選擇成員來查看他們的空閒時段
               </p>
@@ -503,7 +523,7 @@ export default function MeetFlow() {
                           },
                         ]}
                       />
-                      <ScheduleGrid availability={viewing.availability} />
+                      <ScheduleGrid availability={viewing.availability} week={week} />
                     </CardContent>
                   </Card>
                 )}
@@ -514,7 +534,7 @@ export default function MeetFlow() {
           {/* ── Tab 4: Common Availability ── */}
           <TabsContent value="common">
             <div className="mb-5">
-              <h2 className="text-base font-semibold">共同空閒時間</h2>
+              <h2 className="text-base font-semibold">共同空閒時間 ({WEEKS[week]})</h2>
               <p className="text-sm text-muted-foreground mt-0.5">
                 所有 {members.length} 位成員都空閒的時段
               </p>
@@ -533,7 +553,7 @@ export default function MeetFlow() {
                     目前沒有共同空閒時段
                   </p>
                 ) : (
-                  <ScheduleGrid availability={commonSlots} emerald />
+                  <ScheduleGrid availability={commonSlots} emerald week={week} />
                 )}
               </CardContent>
             </Card>
@@ -541,7 +561,7 @@ export default function MeetFlow() {
             {commonSlots.length > 0 && (
               <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
                 {commonSlots.map((s) => {
-                  const [d, h] = s.split("-").map(Number);
+                  const [w, d, h] = s.split("-").map(Number);
                   return (
                     <div
                       key={s}
